@@ -72,6 +72,7 @@ app.post("/addpdf", (req, res) => {
   }
   let pdffile = req.files.pdf;
   let id = req.body.id;
+  let filetitle = req.body.filetitle;
   let name = uuidv4();
   name += pdffile.name.substring(pdffile.name.lastIndexOf("."));
 
@@ -81,7 +82,7 @@ app.post("/addpdf", (req, res) => {
     const insert = db.prepare(
       "INSERT INTO files (id, filename , filetitle) VALUES (@id , @filename , @title)"
     );
-    let info = insert.run({ id, filename: name, title: pdffile.name });
+    let info = insert.run({ id, filename: name, title: filetitle });
 
     /// read file
     let dataBuffer = fs.readFileSync(path.join("uploads", name));
@@ -96,16 +97,38 @@ app.post("/parsepdf", (req, res) => {
   const { filename } = req.body;
   let dataBuffer = fs.readFileSync(path.join("uploads", filename));
   const ft = db
-    .prepare(
-      "SELECT filetitle from files where files.filename=@filename"
-    )
+    .prepare("SELECT filetitle from files where files.filename=@filename")
     .get({ filename });
-    console.log(ft);
+  console.log(ft);
   pdf(dataBuffer).then((data) => {
     let sanitizedText = data.text;
     sanitizedText = sanitizedText.replace(/[\r\n]/gm, "");
     res.send({ text: sanitizedText, code: "success", filetitle: ft.filetitle });
   });
+});
+app.post("/editprofile", (req, res) => {
+  const { username, password, name, id } = req.body;
+  // check if username exists
+  const usernameExists = db.prepare(
+    "SELECT id from users where username=@username"
+  );
+  if (usernameExists && username.id) {
+    return res.send({ code: "err", message: "Username exists" });
+  }
+
+  const update = db
+    .prepare(
+      "UPDATE users SET username=@username, password=@password, name=@name  WHERE id=@id"
+    )
+    .run({ username, name, password, id });
+  if (update) {
+    return res.send({
+      code: "success",
+      message: "Saved",
+    });
+  } else {
+    res.send({ code: "err", message: "could not update" });
+  }
 });
 
 app.post("/getuserdetails", (req, res) => {
